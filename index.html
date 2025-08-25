@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>名片 → Google 通訊錄 匯入檔 產生器</title>
+  <style>
+    :root { --bg:#f7f7fb; --fg:#1f2937; --muted:#6b7280; --card:#ffffff; --primary:#2563eb; --border:#e5e7eb; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans TC", Helvetica, Arial; color:var(--fg); background:linear-gradient(180deg,#f8fafc,#eef2ff); }
+    .container { max-width: 1080px; margin: 40px auto; padding: 0 16px; }
+    .title { text-align:center; margin-bottom: 16px; }
+    .subtitle { text-align:center; color:var(--muted); margin-top:0; }
+    .grid { display:grid; grid-template-columns: repeat(12, 1fr); gap:12px; }
+    .card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:16px; box-shadow: 0 10px 20px rgba(0,0,0,.04); }
+    .input { width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:#fff; }
+    label { font-size:12px; color:#374151; display:block; margin-bottom:6px; }
+    .row { display:flex; gap:8px; align-items:center; }
+    .btn { cursor:pointer; border:1px solid transparent; border-radius:12px; padding:10px 14px; background:var(--primary); color:#fff; font-weight:600; }
+    .btn.secondary { background:#fff; color:var(--fg); border-color:var(--border); }
+    .btn.ghost { background:transparent; color:var(--primary); border-color:transparent; }
+    .btn:disabled { opacity:.5; cursor:not-allowed; }
+    table { width:100%; border-collapse: collapse; }
+    th, td { border-bottom:1px solid var(--border); padding:10px 8px; text-align:left; font-size:14px; }
+    th { background:#f8fafc; position:sticky; top:0; z-index:1; }
+    .toolbar { display:flex; flex-wrap:wrap; gap:8px; justify-content:space-between; align-items:center; margin: 12px 0 4px; }
+    .pill { padding:4px 10px; border-radius:999px; background:#eef2ff; color:#3730a3; font-size:12px; }
+    .footer { text-align:center; color:var(--muted); font-size:12px; margin-top:24px; }
+    .tag { font-size:12px; padding:2px 8px; border-radius:999px; background:#f1f5f9; color:#334155; }
+    .danger { color:#dc2626; }
+    .hidden { display:none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1 class="title">名片登打 → 匯出 Google 通訊錄 CSV / vCard</h1>
+    <p class="subtitle">在下方輸入名片資訊，新增到列表後，即可一鍵匯出 <b>Google Contacts CSV</b> 或 <b>.vcf</b>（多聯絡人）。建議使用 <b>UTF‑8（含 BOM）</b> 匯出避免中文亂碼。</p>
+
+    <div class="grid">
+      <!-- Form -->
+      <section class="card" style="grid-column: span 12">
+        <h2 style="margin:6px 0 12px">聯絡人輸入表單</h2>
+        <div class="grid">
+          <div style="grid-column: span 6">
+            <label>姓名（Name / Full Name）</label>
+            <input id="name" class="input" placeholder="王小明" />
+          </div>
+          <div style="grid-column: span 3">
+            <label>姓氏（Family Name）</label>
+            <input id="familyName" class="input" placeholder="王" />
+          </div>
+          <div style="grid-column: span 3">
+            <label>名字（Given Name）</label>
+            <input id="givenName" class="input" placeholder="小明" />
+          </div>
+          <div style="grid-column: span 6">
+            <label>公司（Organization Name）</label>
+            <input id="company" class="input" placeholder="ABC 科技股份有限公司" />
+          </div>
+          <div style="grid-column: span 6">
+            <label>職稱（Organization Title）</label>
+            <input id="title" class="input" placeholder="業務經理 / Sales Manager" />
+          </div>
+          <div style="grid-column: span 6">
+            <label>Email</label>
+            <div class="row">
+              <select id="emailType" class="input" style="max-width:180px">
+                <option value="Work">Work</option>
+                <option value="Home">Home</option>
+                <option value="Other">Other</option>
+              </select>
+              <input id="email" class="input" style="flex:1" placeholder="name@example.com" />
+            </div>
+          </div>
+          <div style="grid-column: span 6">
+            <label>電話</label>
+            <div class="row">
+              <select id="phoneType" class="input" style="max-width:180px">
+                <option value="Mobile">Mobile</option>
+                <option value="Work">Work</option>
+                <option value="Home">Home</option>
+                <option value="Main">Main</option>
+                <option value="Other">Other</option>
+              </select>
+              <input id="phone" class="input" style="flex:1" placeholder="+886 912 345 678" />
+            </div>
+          </div>
+          <div style="grid-column: span 12">
+            <label>地址（可留白）</label>
+            <input id="address" class="input" placeholder="台北市中正區…" />
+          </div>
+          <div style="grid-column: span 12">
+            <label>備註（Notes，可留白）</label>
+            <input id="notes" class="input" placeholder="在 Kintone 專案展會認識、需 9/15 前寄報價" />
+          </div>
+        </div>
+        <div class="toolbar">
+          <div class="row" style="gap:12px">
+            <button class="btn" onclick="addContact()">＋ 新增到列表</button>
+            <button class="btn secondary" onclick="clearForm()">清空表單</button>
+          </div>
+          <span class="pill" id="counter">目前 0 筆</span>
+        </div>
+      </section>
+
+      <!-- Preview Table -->
+      <section class="card" style="grid-column: span 12">
+        <div class="toolbar">
+          <div class="row" style="gap:8px">
+            <button class="btn" onclick="exportGoogleCSV()">匯出 Google Contacts CSV</button>
+            <button class="btn secondary" onclick="exportVCF()">匯出 vCard (.vcf)</button>
+          </div>
+          <div class="row" style="gap:8px">
+            <button class="btn ghost" onclick="downloadTemplate()">下載 CSV 範本</button>
+            <label class="tag">建議：匯入 Google 通訊錄前先備份</label>
+          </div>
+        </div>
+        <div style="max-height: 420px; overflow:auto; border:1px dashed var(--border); border-radius:12px;">
+          <table id="table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>姓名</th>
+                <th>公司</th>
+                <th>職稱</th>
+                <th>Email</th>
+                <th>電話</th>
+                <th>動作</th>
+              </tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <p class="footer">Made for 快速整理名片 → 匯入 Google 通訊錄．純前端離線執行，不上傳任何資料。</p>
+  </div>
+
+  <script>
+    // 狀態
+    const state = { contacts: [] };
+
+    function $(id){ return document.getElementById(id); }
+
+    function clearForm(){
+      ['name','familyName','givenName','company','title','email','phone','address','notes']
+        .forEach(id => $(id).value = '');
+      $('emailType').value = 'Work';
+      $('phoneType').value = 'Mobile';
+    }
+
+    function readForm(){
+      const name = $('name').value.trim();
+      const familyName = $('familyName').value.trim();
+      const givenName = $('givenName').value.trim();
+      const company = $('company').value.trim();
+      const title = $('title').value.trim();
+      const emailType = $('emailType').value;
+      const email = $('email').value.trim();
+      const phoneType = $('phoneType').value;
+      const phone = $('phone').value.trim();
+      const address = $('address').value.trim();
+      const notes = $('notes').value.trim();
+
+      const fullName = name || `${familyName}${givenName}` || '';
+      if(!fullName) { alert('請至少填「姓名」或「姓氏/名字」。'); return null; }
+      return { fullName, familyName, givenName, company, title, emailType, email, phoneType, phone, address, notes };
+    }
+
+    function addContact(){
+      const c = readForm();
+      if(!c) return;
+      state.contacts.push(c);
+      render();
+      clearForm();
+    }
+
+    function removeAt(i){
+      state.contacts.splice(i,1);
+      render();
+    }
+
+    function editAt(i){
+      const c = state.contacts[i];
+      $('name').value = c.fullName;
+      $('familyName').value = c.familyName;
+      $('givenName').value = c.givenName;
+      $('company').value = c.company;
+      $('title').value = c.title;
+      $('emailType').value = c.emailType;
+      $('email').value = c.email;
+      $('phoneType').value = c.phoneType;
+      $('phone').value = c.phone;
+      $('address').value = c.address;
+      $('notes').value = c.notes;
+      removeAt(i);
+    }
+
+    function render(){
+      const tbody = $('tbody');
+      tbody.innerHTML = state.contacts.map((c,i)=>`
+        <tr>
+          <td>${i+1}</td>
+          <td>${escapeHTML(c.fullName)}</td>
+          <td>${escapeHTML(c.company)}</td>
+          <td>${escapeHTML(c.title)}</td>
+          <td>${escapeHTML(c.email)}</td>
+          <td>${escapeHTML(c.phone)}</td>
+          <td>
+            <button class="btn secondary" onclick="editAt(${i})">編輯</button>
+            <button class="btn secondary danger" onclick="removeAt(${i})">刪除</button>
+          </td>
+        </tr>
+      `).join('');
+      $('counter').textContent = `目前 ${state.contacts.length} 筆`;
+    }
+
+    // 匯出：Google Contacts CSV（欄位符合 Google 匯入）
+    function exportGoogleCSV(){
+      if(state.contacts.length===0){ alert('列表為空，請先新增。'); return; }
+      const headers = [
+        'Name','Given Name','Additional Name','Family Name','Yomi Name','Given Name Yomi','Family Name Yomi','Name Prefix','Name Suffix','Initials','Nickname','Short Name','Maiden Name','Birthday','Gender','Location','Billing Information','Directory Server','Mileage','Occupation','Hobby','Sensitivity','Priority','Subject','Notes','Language','Photo','Group Membership','E-mail 1 - Type','E-mail 1 - Value','Phone 1 - Type','Phone 1 - Value','Organization 1 - Name','Organization 1 - Title'
+      ];
+
+      const rows = state.contacts.map(c => ([
+        c.fullName,
+        c.givenName || '',
+        '',
+        c.familyName || '',
+        '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '',
+        c.notes || '',
+        '', // Language
+        '', // Photo URL (可留白)
+        '* My Contacts',
+        c.email ? c.emailType : '',
+        c.email || '',
+        c.phone ? c.phoneType : '',
+        c.phone || '',
+        c.company || '',
+        c.title || ''
+      ]));
+
+      const csv = toCSV([headers, ...rows]);
+      download(csvToBlobUTF8BOM(csv), `google-contacts-${yyyymmdd()}.csv`);
+    }
+
+    // 匯出：vCard 3.0（多聯絡人）
+    function exportVCF(){
+      if(state.contacts.length===0){ alert('列表為空，請先新增。'); return; }
+      const entries = state.contacts.map(c => {
+        const n = `${c.familyName};${c.givenName};;;`;
+        const fn = c.fullName;
+        const org = c.company ? `ORG:${escapeVCF(c.company)}\n` : '';
+        const title = c.title ? `TITLE:${escapeVCF(c.title)}\n` : '';
+        const email = c.email ? `EMAIL;TYPE=${c.emailType.toUpperCase()}:${escapeVCF(c.email)}\n` : '';
+        const tel = c.phone ? `TEL;TYPE=${c.phoneType.toUpperCase()}:${escapeVCF(c.phone)}\n` : '';
+        const adr = c.address ? `ADR;TYPE=WORK:;;${escapeVCF(c.address)};;;;\n` : '';
+        const note = c.notes ? `NOTE:${escapeVCF(c.notes)}\n` : '';
+        return `BEGIN:VCARD\nVERSION:3.0\nN:${escapeVCF(n)}\nFN:${escapeVCF(fn)}\n${org}${title}${email}${tel}${adr}${note}END:VCARD`;
+      }).join('\n');
+      const blob = new Blob([entries], { type: 'text/vcard;charset=utf-8' });
+      download(blob, `contacts-${yyyymmdd()}.vcf`);
+    }
+
+    // 範本下載（空白一列）
+    function downloadTemplate(){
+      const headers = ['Name','Given Name','Family Name','E-mail 1 - Type','E-mail 1 - Value','Phone 1 - Type','Phone 1 - Value','Organization 1 - Name','Organization 1 - Title','Notes'];
+      const csv = toCSV([headers, ['','','','Work','','Mobile','','','','']]);
+      download(csvToBlobUTF8BOM(csv), 'google-contacts-template.csv');
+    }
+
+    // Helpers
+    function escapeHTML(s){ return (s||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[m])); }
+    function escapeVCF(s){ return (s||'').replace(/\\/g,'\\\\').replace(/\n/g,'\\n').replace(/,/g,'\,').replace(/;/g,'\;'); }
+    function toCSV(rows){
+      return rows.map(r => r.map(cell => {
+        const s = (cell ?? '').toString();
+        if(/[",\n]/.test(s)) return '"' + s.replace(/"/g,'""') + '"';
+        return s;
+      }).join(',')).join('\n');
+    }
+    function csvToBlobUTF8BOM(csv){
+      const BOM = new Uint8Array([0xEF,0xBB,0xBF]); // UTF-8 BOM，避免中文亂碼
+      return new Blob([BOM, csv], { type: 'text/csv;charset=utf-8' });
+    }
+    function download(blob, filename){
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+    }
+    function yyyymmdd(){ const d=new Date(); const m=(d.getMonth()+1+"" ).padStart(2,'0'); const day=(d.getDate()+"").padStart(2,'0'); return `${d.getFullYear()}${m}${day}`; }
+  </script>
+</body>
+</html>
